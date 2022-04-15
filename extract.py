@@ -66,13 +66,13 @@ def extract(fname):
     found_tags = []
     so_far = set()
     for tag in tags:
-        if matches := get_matches(tag):
-            if len(matches) != 1:
-                breakpoint()
-                raise ValueError("matches > 1")
-            if matches[0] not in so_far:
-                found_tags.append(tag)
-            so_far.add(matches[0])
+        matches = get_matches(tag)
+        if not matches:
+            continue
+        assert len(matches) == 1, "matches > 1!!!!"
+        if matches[0] not in so_far:
+            found_tags.append(tag)
+        so_far.add(matches[0])
 
     if not found_tags:
         return {}
