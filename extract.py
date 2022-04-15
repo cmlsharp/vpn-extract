@@ -17,11 +17,11 @@ VPN_RES = tuple(re.compile(f"(?<!\w)({vpn})(?!\w)", flags=re.IGNORECASE) for vpn
 VALID_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"]
 
 
-def pairwise(iterable):
+def pairwise(iterable, fillvalue=None):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(iterable)
     next(b, None)
-    return zip(a,b)
+    return itertools.zip_longest(a,b, fillvalue=fillvalue)
 
 # def lowest_common_ancestor(n1, n2):
     # ancestors1 = [n1] + list(n1.parents)
@@ -50,9 +50,9 @@ def text_between(cur, end):
 
 def get_matches(tag):
     matches = []
-    for i, vpn_re in enumerate(VPN_RES):
+    for vpn_name, vpn_re in zip(VPNS, VPN_RES):
         if match := vpn_re.search(tag.get_text()):
-            matches.append(VPNS[i])
+            matches.append(vpn_name)
     # if len(matches) > 1:
         # breakpoint()
     return matches
@@ -84,7 +84,7 @@ def extract(fname):
 
 
     results = {}
-    for cur, next in pairwise(found_tags + [terminator]):
+    for cur, next in pairwise(found_tags, fillvalue=terminator):
         results[cur] = " ".join(text_between(cur, next))
 
     return results
