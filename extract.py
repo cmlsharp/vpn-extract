@@ -83,11 +83,8 @@ def extract(fname):
     # results.append(terminator)
 
 
-    results = {}
-    for cur, next in pairwise(found_tags, fillvalue=terminator):
-        results[cur] = " ".join(text_between(cur, next))
-
-    return results
+    return {cur : " ".join(text_between(cur, next))
+                for cur, next in pairwise(found_tags, fillvalue=terminator)}
 
 
 
