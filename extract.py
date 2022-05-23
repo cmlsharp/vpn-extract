@@ -1,19 +1,19 @@
-from bs4 import BeautifulSoup, NavigableString
-import re
 import collections
 import itertools
-
+from pathlib import Path
+import re
 import statistics
 import sys
 
+from bs4 import BeautifulSoup, NavigableString
 import termcolor
 
-VPNS = ("Nord\s*VPN" , "Surfshark" , "Private\s+Internet\s+Access|PIA" , "Proton(\s*VPN)?" , "CyberGhost" , "Tunnel\s*Bear" , "Express\s*VPN" , "IVPN" , "Mullvad" , "Mozilla\s*VPN" , "IPVanish" , "Hotspot Shield" , "Norton(\s+Secure)?" , "Pure\s*VPN" , "Strong\s*VPN" , "Hide\.Me" , "HMA|Hide\s*My\s*Ass" , "Vypr\s*VPN" , "Bitdefender" , "Ivacy" , "AVG( Secure)?" , "Personal\s*VPN" , "VPN Unlimited" , "FastestVPN" , "OVPN" , "Windscribe" , "Private\s*VPN" , "Speedify" , "VPNCity" ,
-        "Clear\s*VPN" , "Malwarebytes" , "TorGuard" , "VeePN" , "Ace\s*VPN" , "SurfEasy" , "ESET Security Premium" , "ib\s*VPN" , "Cactus\s*VPN" , "Safer\s*VPN" , "Tiger\s*VPN" , "VPN Shield" , "Astrill" , "SpyOff" , "Boleh" , "Hideman" , "Freedome" , "Le VPN" , "Zoog" , "Slick" , "Perfect Privacy" , "Zen\s*mate" , "VPN\s*Area" , "VPN\.ac" , "Trust\.Zone" , "Atlas\s*VPN" , "UTunnel" , "VPN4All" , "iPro\s*VPN" , "RUSVPN" , "Ultra\s*VPN" , "Proxy\.sh" , "Earth\s*VPN" , "HideIPVPN" , "VPN\.ht"
-        , "Goose\s*VPN" , "VPN\s*Secure" , "Ghost\s*Path" , "Switch\s*VPN" , "Namecheap" , "KeepSolid" , "iTop" , "Acti" , "Air\s*VPN" , "Anonymous\s*VPN" , "Anonine\s*VPN" , "Avira" , "Azire" , "Anonymizer\s*VPN" , "VPN\s*Secure" , "Gom\s*VPN" , "BG\s*VPN" , "APlus" , "Ananoos" , "55\s*VPN" , "Bee\s*VPN" , "Better\s*VPN")
+
+with open(f"vpns.txt") as f:
+    VPNS = f.read().splitlines()
+
 
 VPN_RES = tuple(re.compile(f"(?<!\w)({vpn})(?!\w)", flags=re.IGNORECASE) for vpn in VPNS)
-
 VALID_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"]
 
 
@@ -51,54 +51,68 @@ def text_between(cur, end):
 def get_matches(tag):
     matches = []
     for vpn_name, vpn_re in zip(VPNS, VPN_RES):
-        if match := vpn_re.search(tag.get_text()):
+        if match_ := vpn_re.search(tag.get_text()):
             matches.append(vpn_name)
     # if len(matches) > 1:
         # breakpoint()
     return matches
 
 
+def prettify(match_):
+    return re.sub("\\\\", "", re.sub("[\(\)?]", "", re.sub("\|.*","", re.sub("\\\\s[*+]", " ", match_)))).lower()
+
+Result = collections.namedtuple("Result", ["tag", "match_"])
+
 def extract(fname):
     with open(fname) as f:
         soup = BeautifulSoup(f, "lxml")
 
     tags = soup.body.find_all(VALID_TAGS)
-    found_tags = []
+    found = []
     so_far = set()
     for tag in tags:
         matches = get_matches(tag)
         if not matches:
             continue
+        if len(matches) > 1:
+            breakpoint()
         assert len(matches) == 1, "matches > 1!!!!"
         if matches[0] not in so_far:
-            found_tags.append(tag)
+            found.append(Result(tag=tag, match_=matches[0]))
         so_far.add(matches[0])
 
-    if not found_tags:
+    if not found:
         return {}
 
-    most_common_name = statistics.mode(result.name for result in found_tags)
+    most_common_name = statistics.mode(result.tag.name for result in found)
     term_tags = VALID_TAGS[:VALID_TAGS.index(most_common_name)+1]
-    terminator = found_tags[-1].findNext(term_tags)
+    terminator = Result(tag=found[-1].tag.findNext(term_tags), match_=None)
     # results.append(terminator)
 
 
-    return {cur : " ".join(text_between(cur, next))
-                for cur, next in pairwise(found_tags, fillvalue=terminator)}
+    return {cur.match_ : " ".join(text_between(cur.tag, next.tag))
+                for cur, next in pairwise(found, fillvalue=terminator)}
 
 
 
 def main():
+    all_results = {}
     for file in sys.argv[1:]:
+        dir = Path(Path(file).stem)
+        dir.mkdir(exist_ok=True)
         termcolor.cprint(f"{'-'*20}{file}{'-'*20}", "blue")
         results = extract(file)
 
         if not results:
             termcolor.cprint("NO RESULTS", "red")
 
-        for tag, text in results.items():
-            termcolor.cprint(tag.get_text().strip(), "green")
+        all_results[file] = results
+        for match_, text in results.items():
+            with open(dir / prettify(match_), "w") as f:
+                f.write(text)
+            termcolor.cprint(prettify(match_), "green")
             termcolor.cprint(text, "yellow")
+
 
 if __name__ == "__main__":
     main()
